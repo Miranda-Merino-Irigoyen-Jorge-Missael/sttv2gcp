@@ -1,42 +1,56 @@
 import os
 from pydub import AudioSegment
 
-def normalizar_y_convertir_a_flac(ruta_entrada, ruta_salida, target_dbfs=-20.0):
-    print(f"1. Cargando y decodificando: {ruta_entrada}...")
+def procesar_flujo_completo(ruta_entrada, carpeta_salida, target_dbfs=-20.0):
+    print(f"1. Cargando audio original: {ruta_entrada}...")
     audio = AudioSegment.from_file(ruta_entrada)
     
-    # Leemos y mostramos cuántos canales tiene el audio original
-    canales_originales = audio.channels
-    print(f"   -> Información: El audio original tiene {canales_originales} canal(es).")
-    
-    # CLAVE PARA LA DIARIZACIÓN: Estandarizamos SIEMPRE a 1 canal (Mono)
-    print("2. Estandarizando a 44100 Hz y 1 canal (Mono)...")
-    audio_estandar = audio.set_frame_rate(44100).set_channels(1)
-    
-    print("3. Aplicando normalización de volumen (RMS)...")
-    # Subimos o bajamos el volumen para que quede en el nivel ideal (-20 dBFS)
-    cambio_en_dbfs = target_dbfs - audio_estandar.dBFS
-    audio_normalizado = audio_estandar.apply_gain(cambio_en_dbfs)
-    
-    # Sistema de seguridad: si al subir el volumen general hay un grito que satura, lo bajamos un poco
-    if audio_normalizado.max_dBFS > -1.0:
-        reduccion = audio_normalizado.max_dBFS - (-1.0)
-        audio_normalizado = audio_normalizado.apply_gain(-reduccion)
+    # ESTANDARIZACIÓN (Punto clave para que coincida con el futuro JSON)
+    print("2. Estandarizando formato (Mono, 44100Hz)...")
+    audio = audio.set_frame_rate(44100).set_channels(1)
+
+    # NORMALIZACIÓN GLOBAL
+    print("3. Aplicando normalización de volumen...")
+    cambio_en_dbfs = target_dbfs - audio.dBFS
+    audio = audio.apply_gain(cambio_en_dbfs)
+
+    if not os.path.exists(carpeta_salida):
+        os.makedirs(carpeta_salida)
+
+    # EXPORTAR MASTER (Para AssemblyAI)
+    ruta_master = os.path.join(carpeta_salida, "MASTER_NORMALIZADO.flac")
+    print(f"4. Exportando archivo MASTER para mapeo: {ruta_master}")
+    audio.export(ruta_master, format="flac")
+
+    # SEGMENTACIÓN
+    print("5. Iniciando segmentación en bloques de 50 minutos...")
+    CHUNK_LENGTH_MS = 50 * 60 * 1000 
+    total_ms = len(audio)
+    inicio = 0
+    contador = 1
+
+    while inicio < total_ms:
+        fin = min(inicio + CHUNK_LENGTH_MS, total_ms)
+        chunk = audio[inicio:fin]
         
-    print(f"4. Exportando audio comprimido sin pérdida a: {ruta_salida}...")
-    audio_normalizado.export(ruta_salida, format="flac")
-    print("¡Proceso completado con éxito!\n")
+        nombre_chunk = f"segmento_{contador:02d}.flac"
+        ruta_chunk = os.path.join(carpeta_salida, nombre_chunk)
+        
+        chunk.export(ruta_chunk, format="flac")
+        print(f"   [OK] Fragmento guardado: {nombre_chunk}")
+        
+        inicio = fin
+        contador += 1
+
+    print(f"\n¡Proceso terminado! Tienes el MASTER y {contador-1} segmentos en '{carpeta_salida}'.")
+    return ruta_master
 
 if __name__ == "__main__":
-    # Archivos de prueba
-    ENTRADA = "RAMONA PADILLA ALTAMIRANO 2.mp3"
-    SALIDA = "RAMONA PADILLA ALTAMIRANO 2 (normalizado).flac"
+    # Coloca aquí el nombre de tu archivo de 3h 39min
+    ARCHIVO_ENTRADA = "DRAFT 2 ERNESTO GÓMEZ LEAL.mp3" 
+    CARPETA_DESTINO = "audio_segmentado_DRAFT 2 ERNESTO GÓMEZ LEAL"
     
-    if os.path.exists(ENTRADA):
-        normalizar_y_convertir_a_flac(ENTRADA, SALIDA)
-        
-        # Un pequeño extra para ver cuánto pesa el resultado final
-        peso_mb = os.path.getsize(SALIDA) / (1024 * 1024)
-        print(f"Peso del archivo FLAC resultante: {peso_mb:.2f} MB")
+    if os.path.exists(ARCHIVO_ENTRADA):
+        procesar_flujo_completo(ARCHIVO_ENTRADA, CARPETA_DESTINO)
     else:
-        print("No se encontró el archivo de entrada.")
+        print(f"No se encuentra el archivo: {ARCHIVO_ENTRADA}")
