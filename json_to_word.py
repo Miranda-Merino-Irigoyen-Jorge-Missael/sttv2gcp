@@ -1,81 +1,48 @@
-import os
 import json
-from google.cloud import storage
 import docx
+import os
 
-# Define la ruta al archivo JSON de credenciales
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "woven-operative-419903-3d469fdaeb1c.json"
+def formatear_tiempo_assembly(milisegundos: int) -> str:
+    """Convierte los milisegundos de AssemblyAI a formato MM:SS."""
+    segundos_totales = milisegundos // 1000
+    minutos = int(segundos_totales // 60)
+    segundos = int(segundos_totales % 60)
+    return f"{minutos:02d}:{segundos:02d}"
 
-def formatear_tiempo(tiempo_str: str) -> str:
-    """Convierte el formato '1.500s' de GCP a un formato legible MM:SS."""
+def procesar_assembly_a_word(json_file: str, output_word_file: str):
+    """
+    Lee el JSON local de AssemblyAI y genera un documento Word estructurado.
+    """
+    print(f"Leyendo resultados de: {json_file}")
+    
     try:
-        # Se remueve la 's' final y se convierte a flotante
-        segundos_totales = float(tiempo_str.replace('s', ''))
-        minutos = int(segundos_totales // 60)
-        segundos = int(segundos_totales % 60)
-        return f"{minutos:02d}:{segundos:02d}"
-    except (ValueError, TypeError):
-        return "00:00"
-
-def procesar_json_a_word(bucket_name: str, blob_name: str, output_word_file: str):
-    """
-    Descarga el JSON de STT V1 y genera un documento Word estructurado.
-    """
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(blob_name)
-    
-    print(f"Descargando resultados de: gs://{bucket_name}/{blob_name}")
-    json_data_string = blob.download_as_text()
-    datos = json.loads(json_data_string)
-
+        with open(json_file, 'r', encoding='utf-8') as f:
+            datos = json.load(f)
+    except FileNotFoundError:
+        print(f"[ERROR] No se encontró el archivo {json_file}")
+        return
+        
     doc = docx.Document()
-    doc.add_heading('Transcripción Estructurada (Diarización)', 0)
+    doc.add_heading('Transcripción Estructurada (AssemblyAI)', 0)
 
-    # En la API V1, la diarización consolidada se encuentra en el último resultado
-    resultados = datos.get('results', [])
-    if not resultados:
-        print("[ERROR] El JSON no contiene resultados de transcripción.")
-        return
-
-    ultimo_resultado = resultados[-1]
-    alternativas = ultimo_resultado.get('alternatives', [])
+    # AssemblyAI guarda los diálogos separados en la lista 'utterances'
+    utterances = datos.get('utterances', [])
     
-    if not alternativas or 'words' not in alternativas[0]:
-        print("[ERROR] No se encontraron datos de palabras con etiquetas de hablante en el JSON.")
+    if not utterances:
+        print("[ERROR] El JSON no contiene la lista de 'utterances'.")
         return
 
-    palabras = alternativas[0].get('words', [])
+    print("Procesando estructura de hablantes y construyendo el documento...")
 
-    hablante_actual = None
-    frase_actual = []
-    tiempo_inicio = ""
-
-    print("Procesando estructura de hablantes y tiempos...")
-
-    for metadato_palabra in palabras:
-        # En la API V1, el identificador numérico del hablante es 'speakerTag'
-        hablante = metadato_palabra.get('speakerTag', 0)
-        texto_palabra = metadato_palabra.get('word', '')
-        tiempo_palabra = metadato_palabra.get('startTime', '0s')
-
-        if hablante != hablante_actual:
-            # Si el hablante cambia, se escribe el bloque acumulado en el documento
-            if frase_actual:
-                parrafo = f"Hablante {hablante_actual} [{tiempo_inicio}]: {' '.join(frase_actual)}"
-                doc.add_paragraph(parrafo)
-            
-            # Se reinician los valores para el nuevo hablante
-            hablante_actual = hablante
-            frase_actual = [texto_palabra]
-            tiempo_inicio = formatear_tiempo(tiempo_palabra)
-        else:
-            # Se acumula el texto correspondiente al mismo hablante
-            frase_actual.append(texto_palabra)
-
-    # Inserción del último bloque procesado
-    if frase_actual:
-        parrafo = f"Hablante {hablante_actual} [{tiempo_inicio}]: {' '.join(frase_actual)}"
+    for utterance in utterances:
+        hablante = utterance.get('speaker', 'Desconocido')
+        texto = utterance.get('text', '')
+        tiempo_inicio_ms = utterance.get('start', 0)
+        
+        tiempo_formateado = formatear_tiempo_assembly(tiempo_inicio_ms)
+        
+        # Armamos el párrafo tal cual lo viste en tu terminal
+        parrafo = f"Hablante {hablante} [{tiempo_formateado}]: {texto}"
         doc.add_paragraph(parrafo)
 
     doc.save(output_word_file)
@@ -83,9 +50,13 @@ def procesar_json_a_word(bucket_name: str, blob_name: str, output_word_file: str
     print(f"[ÉXITO] Documento Word generado correctamente: {output_word_file}")
 
 if __name__ == "__main__":
-    NOMBRE_BUCKET = "sttgcp"
-    # La ruta exacta del archivo que definimos en el script de envío
-    ARCHIVO_JSON_EN_BUCKET = "transcripts/resultado_carlos_soto.json" 
-    ARCHIVO_SALIDA_WORD = "transcripcion_carlos_soto.docx"
+    # Apuntamos al archivo JSON que te acaba de generar el script anterior
+    ARCHIVO_JSON = "resultado_assembly.json" 
     
-    procesar_json_a_word(NOMBRE_BUCKET, ARCHIVO_JSON_EN_BUCKET, ARCHIVO_SALIDA_WORD)
+    # El nombre de tu documento final
+    ARCHIVO_SALIDA_WORD = "Transcripcion_OLivia.docx"
+    
+    if os.path.exists(ARCHIVO_JSON):
+        procesar_assembly_a_word(ARCHIVO_JSON, ARCHIVO_SALIDA_WORD)
+    else:
+        print(f"Por favor, asegúrate de que el archivo {ARCHIVO_JSON} esté en esta carpeta.")

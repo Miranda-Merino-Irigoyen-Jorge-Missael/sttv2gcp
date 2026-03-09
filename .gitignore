@@ -27,4 +27,8 @@ desktop.ini
 .cache/
 *json
 *docx
+*txt
+*flac
+*mp3
+
 

@@ -7,28 +7,29 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "woven-operative-419903-3d469fdae
 
 def enviar_batch_v1(gcs_audio_uri: str, gcs_output_uri: str):
     """
-    Envía un trabajo de transcripción asíncrona a STT V1 con diarización habilitada.
+    Envía un trabajo de transcripción asíncrona a STT V1 con diarización y puntuación.
     """
     client = speech.SpeechClient()
 
-# Configuración utilizando el modelo estándar para mayor precisión en diarización
+
     config = speech.RecognitionConfig(
-        encoding=speech.RecognitionConfig.AudioEncoding.MP3,
+        encoding=speech.RecognitionConfig.AudioEncoding.FLAC,
         sample_rate_hertz=44100,
         audio_channel_count=2,
         language_code="es-US",
-        model="default", # Se reemplaza 'latest_long' por 'default'
+        model="latest_long",
+        enable_automatic_punctuation=True,
         enable_word_time_offsets=True,
+        # Nivel de Diarización Estricto
         diarization_config=speech.SpeakerDiarizationConfig(
             enable_speaker_diarization=True,
-            min_speaker_count=2,
-            max_speaker_count=4,
+            min_speaker_count=2, # Mínimo 2
+            max_speaker_count=2, # MÁXIMO 2
         )
     )
 
     audio = speech.RecognitionAudio(uri=gcs_audio_uri)
     
-    # En V1 se define directamente el archivo JSON de salida
     output_config = speech.TranscriptOutputConfig(
         gcs_uri=gcs_output_uri
     )
@@ -50,9 +51,9 @@ def enviar_batch_v1(gcs_audio_uri: str, gcs_output_uri: str):
     print("-" * 50)
 
 if __name__ == "__main__":
-    AUDIO_URI = "gs://sttgcp/test/CL CARLOS SOTO FERNÁNDEZ (mp3cut.net).mp3" 
+    AUDIO_URI = "gs://sttgcp/test/DRAFT_normalizado.flac" 
     
-    # IMPORTANTE: Cambia la ruta para que termine en el nombre de un archivo .json
-    OUTPUT_URI = "gs://sttgcp/transcripts/resultado_carlos_soto.json" 
+    # IMPORTANTE: Te sugiero cambiar el nombre del archivo de salida para no sobreescribir el anterior
+    OUTPUT_URI = "gs://sttgcp/transcripts/resultado_draft_ernesto_puntuado2.json" 
     
     enviar_batch_v1(AUDIO_URI, OUTPUT_URI)

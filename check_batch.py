@@ -28,6 +28,6 @@ def revisar_estado_v1(operation_name: str):
 
 if __name__ == "__main__":
     # ID de operación generado por la API V1
-    OPERATION_ID = "5334944138473523768"
+    OPERATION_ID = "4096715389190313198"
     
     revisar_estado_v1(OPERATION_ID)
