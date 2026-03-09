@@ -1,4 +1,4 @@
-google-cloud-speech
-google-cloud-storage
-python-docx
 pydub
+assemblyai
+google-genai
+python-dotenv

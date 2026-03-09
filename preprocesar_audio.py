@@ -5,8 +5,13 @@ def normalizar_y_convertir_a_flac(ruta_entrada, ruta_salida, target_dbfs=-20.0):
     print(f"1. Cargando y decodificando: {ruta_entrada}...")
     audio = AudioSegment.from_file(ruta_entrada)
     
-    print("2. Estandarizando a 44100 Hz y 2 canales...")
-    audio_estandar = audio.set_frame_rate(44100).set_channels(2)
+    # Leemos y mostramos cuántos canales tiene el audio original
+    canales_originales = audio.channels
+    print(f"   -> Información: El audio original tiene {canales_originales} canal(es).")
+    
+    # CLAVE PARA LA DIARIZACIÓN: Estandarizamos SIEMPRE a 1 canal (Mono)
+    print("2. Estandarizando a 44100 Hz y 1 canal (Mono)...")
+    audio_estandar = audio.set_frame_rate(44100).set_channels(1)
     
     print("3. Aplicando normalización de volumen (RMS)...")
     # Subimos o bajamos el volumen para que quede en el nivel ideal (-20 dBFS)
@@ -19,19 +24,18 @@ def normalizar_y_convertir_a_flac(ruta_entrada, ruta_salida, target_dbfs=-20.0):
         audio_normalizado = audio_normalizado.apply_gain(-reduccion)
         
     print(f"4. Exportando audio comprimido sin pérdida a: {ruta_salida}...")
-    # Aquí está la clave: exportamos en FLAC en lugar de WAV
     audio_normalizado.export(ruta_salida, format="flac")
     print("¡Proceso completado con éxito!\n")
 
 if __name__ == "__main__":
-    # Vamos a usar el mismo archivo largo con el que estabas haciendo pruebas
+    # Archivos de prueba
     ENTRADA = "RAMONA PADILLA ALTAMIRANO 2.mp3"
     SALIDA = "RAMONA PADILLA ALTAMIRANO 2 (normalizado).flac"
     
     if os.path.exists(ENTRADA):
         normalizar_y_convertir_a_flac(ENTRADA, SALIDA)
         
-        # Un pequeño extra para que veas cuánto pesa el resultado final
+        # Un pequeño extra para ver cuánto pesa el resultado final
         peso_mb = os.path.getsize(SALIDA) / (1024 * 1024)
         print(f"Peso del archivo FLAC resultante: {peso_mb:.2f} MB")
     else:

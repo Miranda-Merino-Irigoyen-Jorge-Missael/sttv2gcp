@@ -20,9 +20,8 @@ def preparar_guia_acustica(ruta_json):
     guia = "--- GUÍA ACÚSTICA DE HABLANTES ---\n"
     for u in datos.get("utterances", []):
         start = u.get("start", 0)
-        speaker = u.get("speaker", "X") # Esto suele ser "A", "B", etc.
+        speaker = u.get("speaker", "X") 
         text = u.get("text", "")
-        # Le decimos exactamente cuándo cambia la firma de voz
         guia += f"[Tiempo: {start} ms | Voz Detectada: {speaker}] -> {text}\n"
     return guia
 
@@ -50,7 +49,6 @@ def formatear_a_texto(json_de_gemini, archivo_salida):
         print("Respuesta cruda de Gemini fue:\n", json_de_gemini)
 
 def transcribir_poder_total(ruta_audio, ruta_json):
-    # Ya no pasamos el JSON crudo, pasamos nuestra guía digerida
     guia_acustica = preparar_guia_acustica(ruta_json)
     
     print(f"1. Subiendo '{ruta_audio}' a Gemini...")
@@ -64,16 +62,17 @@ def transcribir_poder_total(ruta_audio, ruta_json):
 
     print("\n3. Iniciando Fusión (JSON Estricto + Anclaje Acústico)...")
     
+    # PROMPT OPTIMIZADO PARA EVITAR INVERSIÓN DE HABLANTES
     prompt_maestro = f"""
-    Eres un perito legal procesando datos de una declaración.
-    A continuación te proporciono una 'Guía Acústica' generada por un sistema especializado que ya diferenció las firmas de voz (Voz A, Voz B, etc.).
+    Eres un perito legal experto en transcripciones de casos de inmigración (procesos tipo VAWA o Visa T).
+    A continuación te proporciono una 'Guía Acústica' generada por un sistema especializado que ya diferenció las firmas de voz (A, B, etc.).
 
     {guia_acustica}
 
     TU MISIÓN:
-    1. Escucha los primeros minutos del audio para deducir quién es la 'Voz A' y quién es la 'Voz B' (quién es el Intervencionista y quién es el Cliente).
-    2. CONFÍA CIEGAMENTE EN LA GUÍA ACÚSTICA. Si la guía marca que cambió a la Voz B, tú debes cambiar de personaje. No intentes adivinar por contexto.
-    3. Usa el audio SOLO para redactar con precisión, corregir ortografía y darle sentido legal a lo que dicen.
+    1. REGLA DE ROLES: Escucha atentamente la dinámica. La voz que hace las preguntas formales y dirige la entrevista es SIEMPRE el 'Intervencionista'. La voz que responde contando su testimonio es SIEMPRE el 'Cliente'.
+    2. CONFÍA CIEGAMENTE EN LA GUÍA ACÚSTICA. Una vez que determines si la Voz A es el Intervencionista o el Cliente, mantén esa lógica estricta. Si la guía marca que cambió a la Voz B, tú debes cambiar de personaje. No intentes adivinar por contexto en contra de la guía.
+    3. Usa el audio SOLO para redactar con precisión, corregir ortografía y darle sentido legal a la narrativa cruda del JSON. Transcribe fielmente fechas, lugares y parentescos.
     4. RESPETA el valor 'Tiempo' (milisegundos) de la guía.
     5. Tu respuesta debe ser EXCLUSIVAMENTE un arreglo JSON válido:
     [
