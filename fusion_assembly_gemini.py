@@ -59,10 +59,10 @@ def transcribir_segmento(ruta_audio, ruta_json, num_segmento):
         except Exception:
             pass
 
-def ensamblar_transcripcion_final(carpeta, archivo_final):
+def ensamblar_transcripcion_final(carpeta, archivo_final, chunk_ms):
     segmentos_audio = sorted([f for f in os.listdir(carpeta) if f.startswith("segmento_") and f.endswith(".flac")])
     transcripcion_completa = ""
-    DURACION_SEGMENTO_MS = 50 * 60 * 1000
+
 
     for i, nombre_audio in enumerate(segmentos_audio):
         ruta_audio = os.path.join(carpeta, nombre_audio)
@@ -73,7 +73,7 @@ def ensamblar_transcripcion_final(carpeta, archivo_final):
             
             for b in bloques:
                 # Ajustamos el tiempo para que el documento final sea continuo
-                ms_reales = int(b.get('tiempo_ms', 0)) + (i * DURACION_SEGMENTO_MS)
+                ms_reales = int(b.get('tiempo_ms', 0)) + (i * chunk_ms)
                 minutos = ms_reales // 60000
                 segundos = (ms_reales % 60000) // 1000
                 hablante = b.get('hablante', 'Desconocido')

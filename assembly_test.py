@@ -9,9 +9,9 @@ load_dotenv()
 ASSEMBLY_KEY = os.getenv("ASSEMBLYAI_API_KEY")
 aai.settings.api_key = ASSEMBLY_KEY
 
-def generar_mapas_segmentados(ruta_master, carpeta_segmentos, ms_por_segmento=50 * 60 * 1000):
+def generar_mapas_segmentados(ruta_master, carpeta_segmentos, chunk_ms):
     print(f"1. Enviando MASTER a AssemblyAI: {ruta_master}")
-    print("   (Esto tomará unos minutos debido a la duración del audio...)")
+    print("   (Esto tomará unos minutos debido a la duración del audio...)")    
     
     config = aai.TranscriptionConfig(
         speaker_labels=True,
@@ -32,8 +32,8 @@ def generar_mapas_segmentados(ruta_master, carpeta_segmentos, ms_por_segmento=50
     segmentos = sorted([f for f in os.listdir(carpeta_segmentos) if f.startswith("segmento_") and f.endswith(".flac")])
 
     for i, nombre_flac in enumerate(segmentos):
-        inicio_ventana = i * ms_por_segmento
-        fin_ventana = (i + 1) * ms_por_segmento
+        inicio_ventana = i * chunk_ms
+        fin_ventana = (i + 1) * chunk_ms
         
         datos_segmento = {"utterances": []}
         

@@ -38,7 +38,7 @@ def obtener_servicios_google(client_secret_file='credentials.json'):
     
     return sheets_service, drive_service
 
-def obtener_filas_pendientes(sheets_service, spreadsheet_id, range_name='SYSTEM AI RFE!A:D'):
+def obtener_filas_pendientes(spreadsheet_id, sheets_service, range_name='SYSTEM AI RFE!A:D'):
     """
     Lee la hoja y filtra las filas con status 'PENDING'.
     """

@@ -3,7 +3,7 @@
 import os
 from pydub import AudioSegment
 
-def procesar_flujo_completo(ruta_entrada, carpeta_salida, target_dbfs=-20.0):
+def procesar_flujo_completo(ruta_entrada, carpeta_salida, chunk_ms, target_dbfs=-20.0):
     print(f"1. Cargando audio original: {ruta_entrada}...")
     audio = AudioSegment.from_file(ruta_entrada)
     
@@ -26,13 +26,12 @@ def procesar_flujo_completo(ruta_entrada, carpeta_salida, target_dbfs=-20.0):
 
     # SEGMENTACIÓN
     print("5. Iniciando segmentación en bloques de 50 minutos...")
-    CHUNK_LENGTH_MS = 50 * 60 * 1000 
     total_ms = len(audio)
     inicio = 0
     contador = 1
 
     while inicio < total_ms:
-        fin = min(inicio + CHUNK_LENGTH_MS, total_ms)
+        fin = min(inicio + chunk_ms, total_ms)
         chunk = audio[inicio:fin]
         
         nombre_chunk = f"segmento_{contador:02d}.flac"
