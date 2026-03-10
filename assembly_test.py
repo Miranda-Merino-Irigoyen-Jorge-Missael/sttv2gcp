@@ -1,3 +1,5 @@
+#SCRIPT PARA 
+
 import assemblyai as aai
 import json
 import os
@@ -7,7 +9,7 @@ load_dotenv()
 ASSEMBLY_KEY = os.getenv("ASSEMBLYAI_API_KEY")
 aai.settings.api_key = ASSEMBLY_KEY
 
-def generar_mapas_segmentados(ruta_master, carpeta_segmentos, ms_por_segmento):
+def generar_mapas_segmentados(ruta_master, carpeta_segmentos, ms_por_segmento=50 * 60 * 1000):
     print(f"1. Enviando MASTER a AssemblyAI: {ruta_master}")
     print("   (Esto tomará unos minutos debido a la duración del audio...)")
     
@@ -22,7 +24,7 @@ def generar_mapas_segmentados(ruta_master, carpeta_segmentos, ms_por_segmento):
 
     if transcript.status == aai.TranscriptStatus.error:
         print(f"[ERROR] AssemblyAI: {transcript.error}")
-        return
+        return False
 
     print("2. Análisis acústico completo. Generando JSONs individuales...")
 
@@ -52,13 +54,5 @@ def generar_mapas_segmentados(ruta_master, carpeta_segmentos, ms_por_segmento):
             json.dump(datos_segmento, f, ensure_ascii=False, indent=4)
             
         print(f"   [OK] Creado: {nombre_json} ({len(datos_segmento['utterances'])} frases)")
-
-if __name__ == "__main__":
-    CARPETA = "audio_segmentado_DRAFT 2 ERNESTO GÓMEZ LEAL"
-    MASTER = os.path.join(CARPETA, "MASTER_NORMALIZADO.flac")
-    DURACION_MS = 50 * 60 * 1000 
-    
-    if os.path.exists(MASTER):
-        generar_mapas_segmentados(MASTER, CARPETA, DURACION_MS)
-    else:
-        print("No se encontró el archivo MASTER en la carpeta.")
+        
+    return True

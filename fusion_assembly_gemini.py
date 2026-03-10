@@ -19,7 +19,7 @@ def preparar_guia_acustica(ruta_json):
 def transcribir_segmento(ruta_audio, ruta_json, num_segmento):
     guia_acustica = preparar_guia_acustica(ruta_json)
     
-    print(f"\n[PROCESANDO] Subiendo segmento {num_segmento}: {os.path.basename(ruta_audio)}...")
+    print(f"\n[PROCESANDO] Subiendo segmento {num_segmento}: {os.path.basename(ruta_audio)} a Gemini...")
     audio_subido = client.files.upload(file=ruta_audio)
     
     while audio_subido.state.name == 'PROCESSING':
@@ -49,13 +49,19 @@ def transcribir_segmento(ruta_audio, ruta_json, num_segmento):
             config=types.GenerateContentConfig(response_mime_type="application/json")
         )
         return json.loads(respuesta.text)
+    except Exception as e:
+        print(f"[ERROR] Problema al procesar el segmento {num_segmento} con Gemini: {e}")
+        return []
     finally:
-        client.files.delete(name=audio_subido.name)
+        # Siempre intentamos borrar el archivo subido para no saturar el almacenamiento de Gemini
+        try:
+            client.files.delete(name=audio_subido.name)
+        except Exception:
+            pass
 
 def ensamblar_transcripcion_final(carpeta, archivo_final):
     segmentos_audio = sorted([f for f in os.listdir(carpeta) if f.startswith("segmento_") and f.endswith(".flac")])
     transcripcion_completa = ""
-    offset_ms = 0
     DURACION_SEGMENTO_MS = 50 * 60 * 1000
 
     for i, nombre_audio in enumerate(segmentos_audio):
@@ -66,20 +72,18 @@ def ensamblar_transcripcion_final(carpeta, archivo_final):
             bloques = transcribir_segmento(ruta_audio, ruta_json, i+1)
             
             for b in bloques:
-                # Ajustamos el tiempo para que el documento final sea continuo (0 a 4 horas)
-                ms_reales = int(b['tiempo_ms']) + (i * DURACION_SEGMENTO_MS)
+                # Ajustamos el tiempo para que el documento final sea continuo
+                ms_reales = int(b.get('tiempo_ms', 0)) + (i * DURACION_SEGMENTO_MS)
                 minutos = ms_reales // 60000
                 segundos = (ms_reales % 60000) // 1000
-                transcripcion_completa += f"{b['hablante']} [{minutos:02d}:{segundos:02d}]: {b['texto']}\n\n"
+                hablante = b.get('hablante', 'Desconocido')
+                texto = b.get('texto', '')
+                transcripcion_completa += f"{hablante} [{minutos:02d}:{segundos:02d}]: {texto}\n\n"
         
         print(f"   [OK] Segmento {i+1} integrado.")
 
     with open(archivo_final, "w", encoding="utf-8") as f:
         f.write(transcripcion_completa)
+        
     print(f"\n[ÉXITO TOTAL] Transcripción completa guardada en: {archivo_final}")
-
-if __name__ == "__main__":
-    CARPETA_TRABAJO = "audio_segmentado_DRAFT 2 ERNESTO GÓMEZ LEAL" # Asegúrate que sea tu carpeta real
-    NOMBRE_SALIDA = "TRANSCRIPCION_FINAL_DRAFT 2 ERNESTO GÓMEZ LEAL.txt"
-    
-    ensamblar_transcripcion_final(CARPETA_TRABAJO, NOMBRE_SALIDA)
+    return archivo_final

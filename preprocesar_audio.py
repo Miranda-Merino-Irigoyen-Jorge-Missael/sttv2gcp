@@ -1,3 +1,5 @@
+#SCRIPT PARA NORMALIZAR Y SEGMENTAR AUDIO
+
 import os
 from pydub import AudioSegment
 
@@ -5,7 +7,7 @@ def procesar_flujo_completo(ruta_entrada, carpeta_salida, target_dbfs=-20.0):
     print(f"1. Cargando audio original: {ruta_entrada}...")
     audio = AudioSegment.from_file(ruta_entrada)
     
-    # ESTANDARIZACIÓN (Punto clave para que coincida con el futuro JSON)
+    # ESTANDARIZACIÓN
     print("2. Estandarizando formato (Mono, 44100Hz)...")
     audio = audio.set_frame_rate(44100).set_channels(1)
 
@@ -44,13 +46,3 @@ def procesar_flujo_completo(ruta_entrada, carpeta_salida, target_dbfs=-20.0):
 
     print(f"\n¡Proceso terminado! Tienes el MASTER y {contador-1} segmentos en '{carpeta_salida}'.")
     return ruta_master
-
-if __name__ == "__main__":
-    # Coloca aquí el nombre de tu archivo de 3h 39min
-    ARCHIVO_ENTRADA = "DRAFT 2 ERNESTO GÓMEZ LEAL.mp3" 
-    CARPETA_DESTINO = "audio_segmentado_DRAFT 2 ERNESTO GÓMEZ LEAL"
-    
-    if os.path.exists(ARCHIVO_ENTRADA):
-        procesar_flujo_completo(ARCHIVO_ENTRADA, CARPETA_DESTINO)
-    else:
-        print(f"No se encuentra el archivo: {ARCHIVO_ENTRADA}")
