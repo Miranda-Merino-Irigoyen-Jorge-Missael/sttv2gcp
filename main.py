@@ -7,7 +7,6 @@ from google_services import obtener_servicios_google, obtener_filas_pendientes, 
 from drive_manager import procesar_link_entrada, crear_carpeta_drive, subir_archivo_drive
 
 # --- CONFIGURACIÓN GLOBAL ---
-# Esta es la "super solución" para el desfase
 DURACION_SEGMENTO_MS = 50 * 60 * 1000 
 SPREADSHEET_ID = '1DPf_Z_YKfIGEO1vlzLGCk6IRTFYzuLkUAf2ylRRdqXY'
 CARPETA_TRANSCRIPCIONES_ID = '17Ady_eCQFjebnHwLAyBKetWjl-9rHz66'
@@ -26,8 +25,8 @@ def main():
     # 1. Autenticación con Google
     sheets_service, drive_service = obtener_servicios_google()
     
-    # 2. Leer filas pendientes (CORREGIDO: Ahora pasa ambos argumentos)
-    filas = obtener_filas_pendientes(SPREADSHEET_ID, sheets_service)
+    # 2. Leer filas pendientes
+    filas = obtener_filas_pendientes(sheets_service, SPREADSHEET_ID)
     if not filas:
         print("No hay filas con status 'PENDING'. Saliendo...")
         return
@@ -62,16 +61,16 @@ def main():
 
                 print(f"\n--- Iniciando pipeline para: {nombre_base} ---")
                 
-                # Paso A: Preprocesar (Usa la constante global)
-                ruta_master = preprocesar_audio.procesar_flujo_completo(ruta_audio, carpeta_segmentos, DURACION_SEGMENTO_MS)
+                # Paso A: Preprocesar (Ahora devuelve múltiples masters y métricas de corte exactas)
+                rutas_masters, limites_masters, limites_segmentos = preprocesar_audio.procesar_flujo_completo(ruta_audio, carpeta_segmentos, DURACION_SEGMENTO_MS)
                 
-                # Paso B: AssemblyAI (Usa la constante global para evitar desfase)
-                exito_assembly = assembly_test.generar_mapas_segmentados(ruta_master, carpeta_segmentos, DURACION_SEGMENTO_MS)
+                # Paso B: AssemblyAI (Ahora recibe la lista de masters y calcula el tiempo matemático global)
+                exito_assembly = assembly_test.generar_mapas_segmentados(rutas_masters, limites_masters, limites_segmentos, carpeta_segmentos)
                 if not exito_assembly:
                     raise Exception(f"Falló el proceso de AssemblyAI para {nombre_base}")
                 
-                # Paso C: Gemini (Usa la constante global para el ensamblado final)
-                fusion_assembly_gemini.ensamblar_transcripcion_final(carpeta_segmentos, archivo_txt_final, DURACION_SEGMENTO_MS)
+                # Paso C: Gemini (Ahora le pasamos los limites_segmentos para que el .txt tenga tiempos perfectos)
+                fusion_assembly_gemini.ensamblar_transcripcion_final(carpeta_segmentos, archivo_txt_final, limites_segmentos)
                 
                 if os.path.exists(archivo_txt_final):
                     archivos_txt_generados.append(archivo_txt_final)

@@ -43,15 +43,45 @@ def transcribir_segmento(ruta_audio, ruta_json, num_segmento):
     """
 
     try:
+        # Desactivamos los filtros de seguridad explícitamente para análisis legal
+        configuracion_segura = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            safety_settings=[
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+            ]
+        )
+
         respuesta = client.models.generate_content(
             model='gemini-3-flash-preview', 
             contents=[audio_subido, prompt_maestro],
-            config=types.GenerateContentConfig(response_mime_type="application/json")
+            config=configuracion_segura
         )
+        
+        # Validación extra: Si por algún error de conexión el texto viene vacío, lanzamos una excepción controlada
+        if not respuesta.text:
+            raise ValueError("Gemini devolvió una respuesta vacía (posible bloqueo interno o caída de red).")
+            
         return json.loads(respuesta.text)
+        
     except Exception as e:
         print(f"[ERROR] Problema al procesar el segmento {num_segmento} con Gemini: {e}")
         return []
+        
     finally:
         # Siempre intentamos borrar el archivo subido para no saturar el almacenamiento de Gemini
         try:
@@ -59,21 +89,27 @@ def transcribir_segmento(ruta_audio, ruta_json, num_segmento):
         except Exception:
             pass
 
-def ensamblar_transcripcion_final(carpeta, archivo_final, chunk_ms):
+def ensamblar_transcripcion_final(carpeta, archivo_final, limites_segmentos):
     segmentos_audio = sorted([f for f in os.listdir(carpeta) if f.startswith("segmento_") and f.endswith(".flac")])
     transcripcion_completa = ""
-
 
     for i, nombre_audio in enumerate(segmentos_audio):
         ruta_audio = os.path.join(carpeta, nombre_audio)
         ruta_json = ruta_audio.replace(".flac", ".json")
         
+        # Buscar el tiempo de inicio real exacto para este segmento en particular
+        inicio_ms_real = 0
+        for limite in limites_segmentos:
+            if limite['archivo'] == nombre_audio:
+                inicio_ms_real = limite['inicio_ms']
+                break
+        
         if os.path.exists(ruta_json):
             bloques = transcribir_segmento(ruta_audio, ruta_json, i+1)
             
             for b in bloques:
-                # Ajustamos el tiempo para que el documento final sea continuo
-                ms_reales = int(b.get('tiempo_ms', 0)) + (i * chunk_ms)
+                # Ajustamos el tiempo usando el inicio matemático real y exacto
+                ms_reales = int(b.get('tiempo_ms', 0)) + inicio_ms_real
                 minutos = ms_reales // 60000
                 segundos = (ms_reales % 60000) // 1000
                 hablante = b.get('hablante', 'Desconocido')
