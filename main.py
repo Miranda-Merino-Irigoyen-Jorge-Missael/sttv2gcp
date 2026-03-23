@@ -20,7 +20,7 @@ def limpiar_directorio_local(ruta):
             print(f"No se pudo borrar la carpeta temporal {ruta}: {e}")
 
 def main():
-    print("Iniciando Orquestador del Sistema AI RFE...")
+    print("Iniciando Orquestador del Sistema AI RFE con Reintentos y Fallback...")
     
     # 1. Autenticación con Google
     sheets_service, drive_service = obtener_servicios_google()
@@ -61,37 +61,43 @@ def main():
 
                 print(f"\n--- Iniciando pipeline para: {nombre_base} ---")
                 
-                # Paso A: Preprocesar (Ahora devuelve múltiples masters y métricas de corte exactas)
+                # Paso A: Preprocesar
                 rutas_masters, limites_masters, limites_segmentos = preprocesar_audio.procesar_flujo_completo(ruta_audio, carpeta_segmentos, DURACION_SEGMENTO_MS)
                 
-                # Paso B: AssemblyAI (Ahora recibe la lista de masters y calcula el tiempo matemático global)
+                # Paso B: AssemblyAI para el mapa de voces
                 exito_assembly = assembly_test.generar_mapas_segmentados(rutas_masters, limites_masters, limites_segmentos, carpeta_segmentos)
                 if not exito_assembly:
-                    raise Exception(f"Falló el proceso de AssemblyAI para {nombre_base}")
+                    print(f"[ERROR] Falló AssemblyAI en {nombre_base}. Saltando este archivo.")
+                    continue
                 
-                # Paso C: Gemini (Ahora le pasamos los limites_segmentos para que el .txt tenga tiempos perfectos)
+                # Paso C: Gemini con Reintentos y Fallback de Modelos
+                # Esta función ahora es mucho más robusta gracias a tenacity y la rotación de modelos
                 fusion_assembly_gemini.ensamblar_transcripcion_final(carpeta_segmentos, archivo_txt_final, limites_segmentos)
                 
                 if os.path.exists(archivo_txt_final):
                     archivos_txt_generados.append(archivo_txt_final)
 
-            # 6. Subir resultados a Drive
-            link_resultado_drive = ""
-            if tipo_link == 'folder' or len(archivos_txt_generados) > 1:
-                nombre_carpeta_nueva = f"Transcripciones - {fila['cliente']}"
-                folder_id, link_resultado_drive = crear_carpeta_drive(drive_service, nombre_carpeta_nueva, CARPETA_TRANSCRIPCIONES_ID)
-                for txt in archivos_txt_generados:
-                    subir_archivo_drive(drive_service, txt, folder_id)
-            else:
-                link_resultado_drive = subir_archivo_drive(drive_service, archivos_txt_generados[0], CARPETA_TRANSCRIPCIONES_ID)
+            # 6. Subir resultados a Drive si se generó al menos un archivo
+            if archivos_txt_generados:
+                link_resultado_drive = ""
+                if tipo_link == 'folder' or len(archivos_txt_generados) > 1:
+                    nombre_carpeta_nueva = f"Transcripciones - {fila['cliente']}"
+                    folder_id, link_resultado_drive = crear_carpeta_drive(drive_service, nombre_carpeta_nueva, CARPETA_TRANSCRIPCIONES_ID)
+                    for txt in archivos_txt_generados:
+                        subir_archivo_drive(drive_service, txt, folder_id)
+                else:
+                    link_resultado_drive = subir_archivo_drive(drive_service, archivos_txt_generados[0], CARPETA_TRANSCRIPCIONES_ID)
 
-            # 7. Actualizar Spreadsheet con ÉXITO
-            actualizar_status_y_link(sheets_service, SPREADSHEET_ID, fila['fila_excel'], "COMPLETED", link_resultado_drive)
-            print(f"Fila {fila['fila_excel']} completada con éxito.")
+                # 7. Actualizar Spreadsheet con ÉXITO
+                actualizar_status_y_link(sheets_service, SPREADSHEET_ID, fila['fila_excel'], "TRANSCRIPT COMPLETED", link_resultado_drive)
+                print(f"Fila {fila['fila_excel']} completada con éxito.")
+            else:
+                actualizar_status_y_link(sheets_service, SPREADSHEET_ID, fila['fila_excel'], "ERROR", "No se generó transcripción")
 
         except Exception as e:
-            print(f"Error en fila {fila['fila_excel']}: {e}")
-            actualizar_status_y_link(sheets_service, SPREADSHEET_ID, fila['fila_excel'], "ERROR", str(e)[:50])
+            error_msg = str(e)[:100]
+            print(f"Error crítico en fila {fila['fila_excel']}: {error_msg}")
+            actualizar_status_y_link(sheets_service, SPREADSHEET_ID, fila['fila_excel'], "ERROR", error_msg)
         
         finally:
             limpiar_directorio_local(carpeta_trabajo)
