@@ -1,10 +1,20 @@
+# main.py
 import os
 import shutil
+from dotenv import load_dotenv
+
 import preprocesar_audio
 import assembly_test
 import fusion_assembly_gemini
 from google_services import obtener_servicios_google, obtener_filas_pendientes, actualizar_status_y_link
 from drive_manager import procesar_link_entrada, crear_carpeta_drive, subir_archivo_drive
+
+# IMPORTAMOS EL NUEVO GESTOR DE GCS
+from gcs_manager import subir_archivo_gcs
+
+# Cargar variables de entorno (incluyendo BUCKET_NAME y credenciales)
+load_dotenv()
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
 # --- CONFIGURACIÓN GLOBAL ---
 DURACION_SEGMENTO_MS = 50 * 60 * 1000 
@@ -22,7 +32,7 @@ def limpiar_directorio_local(ruta):
 def main():
     print("Iniciando Orquestador del Sistema AI RFE con Reintentos y Fallback...")
     
-    # 1. Autenticación con Google
+    # 1. Autenticación con Google (OAuth 2.0 para Drive/Sheets)
     sheets_service, drive_service = obtener_servicios_google()
     
     # 2. Leer filas pendientes
@@ -70,16 +80,28 @@ def main():
                     print(f"[ERROR] Falló AssemblyAI en {nombre_base}. Saltando este archivo.")
                     continue
                 
-                # Paso C: Gemini con Reintentos y Fallback de Modelos
-                # Esta función ahora es mucho más robusta gracias a tenacity y la rotación de modelos
+                # Paso C: Gemini
                 fusion_assembly_gemini.ensamblar_transcripcion_final(carpeta_segmentos, archivo_txt_final, limites_segmentos)
                 
                 if os.path.exists(archivo_txt_final):
                     archivos_txt_generados.append(archivo_txt_final)
 
-            # 6. Subir resultados a Drive si se generó al menos un archivo
+            # 6. DOBLE ESCRITURA: Subir a Drive y a GCS
             if archivos_txt_generados:
                 link_resultado_drive = ""
+                uris_gcs_generadas = []
+                
+                # Subida a GCS (Nuevo)
+                for txt in archivos_txt_generados:
+                    # Agrupamos en una carpeta con el nombre del cliente dentro del bucket
+                    carpeta_gcs = f"transcripciones_{fila['cliente'].replace(' ', '_')}"
+                    uri = subir_archivo_gcs(txt, GCS_BUCKET_NAME, carpeta_gcs)
+                    uris_gcs_generadas.append(uri)
+                
+                # Unimos las URIs con un salto de línea por si son varias
+                link_resultado_gcs = "\n".join(uris_gcs_generadas)
+
+                # Subida a Drive (Original)
                 if tipo_link == 'folder' or len(archivos_txt_generados) > 1:
                     nombre_carpeta_nueva = f"Transcripciones - {fila['cliente']}"
                     folder_id, link_resultado_drive = crear_carpeta_drive(drive_service, nombre_carpeta_nueva, CARPETA_TRANSCRIPCIONES_ID)
@@ -88,9 +110,16 @@ def main():
                 else:
                     link_resultado_drive = subir_archivo_drive(drive_service, archivos_txt_generados[0], CARPETA_TRANSCRIPCIONES_ID)
 
-                # 7. Actualizar Spreadsheet con ÉXITO
-                actualizar_status_y_link(sheets_service, SPREADSHEET_ID, fila['fila_excel'], "TRANSCRIPT COMPLETED", link_resultado_drive)
-                print(f"Fila {fila['fila_excel']} completada con éxito.")
+                # 7. Actualizar Spreadsheet con ÉXITO (Ahora enviando Drive y GCS)
+                actualizar_status_y_link(
+                    sheets_service, 
+                    SPREADSHEET_ID, 
+                    fila['fila_excel'], 
+                    "TRANSCRIPT COMPLETED", 
+                    link_resultado_drive,
+                    link_resultado_gcs
+                )
+                print(f"Fila {fila['fila_excel']} completada con éxito. Registros en Drive y GCS guardados.")
             else:
                 actualizar_status_y_link(sheets_service, SPREADSHEET_ID, fila['fila_excel'], "ERROR", "No se generó transcripción")
 

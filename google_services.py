@@ -1,3 +1,4 @@
+# google_services.py
 import os
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -69,13 +70,13 @@ def obtener_filas_pendientes(sheets_service, spreadsheet_id, range_name='SYSTEM 
                 
     return filas_pendientes
 
-def actualizar_status_y_link(sheets_service, spreadsheet_id, fila, nuevo_status, link_resultado=""):
+def actualizar_status_y_link(sheets_service, spreadsheet_id, fila, nuevo_status, link_resultado="", link_gcs=""):
     """
-    Actualiza el status (Columna B) y el link de transcripción final (Columna D) de una fila.
+    Actualiza el status (Columna B), el link de Drive (Columna D) y la URI de GCS (Columna E) de una fila.
     """
     sheet = sheets_service.spreadsheets()
     
-    # Actualizar Status (Columna B)
+    # 1. Actualizar Status (Columna B)
     sheet.values().update(
         spreadsheetId=spreadsheet_id, 
         range=f'SYSTEM AI RFE!B{fila}',
@@ -83,11 +84,20 @@ def actualizar_status_y_link(sheets_service, spreadsheet_id, fila, nuevo_status,
         body={'values': [[nuevo_status]]}
     ).execute()
 
-    # Actualizar Link (Columna D) si existe
+    # 2. Actualizar Link de Google Drive (Columna D) si existe
     if link_resultado:
         sheet.values().update(
             spreadsheetId=spreadsheet_id, 
             range=f'SYSTEM AI RFE!D{fila}',
             valueInputOption='USER_ENTERED', 
             body={'values': [[link_resultado]]}
+        ).execute()
+        
+    # 3. Actualizar URI de Google Cloud Storage (Columna E) si existe
+    if link_gcs:
+        sheet.values().update(
+            spreadsheetId=spreadsheet_id, 
+            range=f'SYSTEM AI RFE!E{fila}',
+            valueInputOption='USER_ENTERED', 
+            body={'values': [[link_gcs]]}
         ).execute()
