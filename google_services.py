@@ -1,103 +1,34 @@
 # google_services.py
-import os
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+import google.auth
 from googleapiclient.discovery import build
+from google.cloud import secretmanager
 
-# Definimos los alcances (scopes) necesarios para leer/escribir en Sheets y Drive
+# Alcances necesarios para Drive y Sheets
 SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/drive'
 ]
 
-def obtener_servicios_google(client_secret_file='credentials.json'):
+def obtener_servicios_google():
     """
-    Autentica y devuelve los clientes de Sheets y Drive usando tu cuenta personal.
-    Abre el navegador la primera vez para autorizar.
+    Autentica automáticamente usando la Identidad de la instancia (Cloud Run).
+    No requiere archivos token.json ni intervención del navegador.
     """
-    creds = None
-    # El archivo token.json almacena los tokens de acceso y actualización del usuario.
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-        
-    # Si no hay credenciales válidas, pedimos al usuario que inicie sesión.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(client_secret_file, SCOPES)
-            # Esto abrirá el navegador para que inicies sesión
-            creds = flow.run_local_server(port=0)
-            
-        # Guardamos las credenciales para la próxima ejecución
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
-
+    # google.auth.default() detecta automáticamente la Service Account en GCP
+    creds, project_id = google.auth.default(scopes=SCOPES)
+    
     sheets_service = build('sheets', 'v4', credentials=creds)
     drive_service = build('drive', 'v3', credentials=creds)
     
     return sheets_service, drive_service
 
-def obtener_filas_pendientes(sheets_service, spreadsheet_id, range_name='SYSTEM AI RFE!A:D'):
+def acceder_secreto(secret_id, version_id="latest"):
     """
-    Lee la hoja y filtra las filas con status 'PENDING'.
+    Obtiene valores sensibles (API Keys) de Secret Manager.
     """
-    sheet = sheets_service.spreadsheets()
-    result = sheet.values().get(spreadsheetId=spreadsheet_id, range=range_name).execute()
-    values = result.get('values', [])
+    _, project_id = google.auth.default()
+    client = secretmanager.SecretManagerServiceClient()
+    nombre_secreto = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
     
-    filas_pendientes = []
-    if not values:
-        return filas_pendientes
-
-    for index, row in enumerate(values):
-        if index == 0:
-            continue
-        
-        if len(row) >= 3:
-            nombre_cliente = row[0]
-            status = row[1]
-            link_drive = row[2]
-            
-            if status.strip().upper() == 'PENDING':
-                filas_pendientes.append({
-                    'fila_excel': index + 1, 
-                    'cliente': nombre_cliente,
-                    'status': status,
-                    'link': link_drive
-                })
-                
-    return filas_pendientes
-
-def actualizar_status_y_link(sheets_service, spreadsheet_id, fila, nuevo_status, link_resultado="", link_gcs=""):
-    """
-    Actualiza el status (Columna B), el link de Drive (Columna D) y la URI de GCS (Columna E) de una fila.
-    """
-    sheet = sheets_service.spreadsheets()
-    
-    # 1. Actualizar Status (Columna B)
-    sheet.values().update(
-        spreadsheetId=spreadsheet_id, 
-        range=f'SYSTEM AI RFE!B{fila}',
-        valueInputOption='USER_ENTERED', 
-        body={'values': [[nuevo_status]]}
-    ).execute()
-
-    # 2. Actualizar Link de Google Drive (Columna D) si existe
-    if link_resultado:
-        sheet.values().update(
-            spreadsheetId=spreadsheet_id, 
-            range=f'SYSTEM AI RFE!D{fila}',
-            valueInputOption='USER_ENTERED', 
-            body={'values': [[link_resultado]]}
-        ).execute()
-        
-    # 3. Actualizar URI de Google Cloud Storage (Columna E) si existe
-    if link_gcs:
-        sheet.values().update(
-            spreadsheetId=spreadsheet_id, 
-            range=f'SYSTEM AI RFE!E{fila}',
-            valueInputOption='USER_ENTERED', 
-            body={'values': [[link_gcs]]}
-        ).execute()
+    respuesta = client.access_secret_version(request={"name": nombre_secreto})
+    return respuesta.payload.data.decode("UTF-8")

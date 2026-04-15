@@ -30,5 +30,6 @@ desktop.ini
 *txt
 *flac
 *mp3
-
+temp_*/
+!requirements.txt
 
