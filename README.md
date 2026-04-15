@@ -60,6 +60,7 @@ gcloud run deploy transcriptor-mendoza \
   --allow-unauthenticated \
   --set-env-vars GCS_BUCKET_NAME=[BUCKET_NAME] \
   --set-secrets="GEMINI_API_KEY=gemini-key:latest,ASSEMBLYAI_API_KEY=assembly-key:latest"
+```
 
 ## 6. Referencia de la API
 
@@ -71,20 +72,8 @@ gcloud run deploy transcriptor-mendoza \
   "ruta_local_o_gcs": "gs://bucket/audio.mp3",
   "cliente_id": "IDENTIFICADOR_CLIENTE"
 }
+```
 
-Aquí tienes el bloque exacto en Markdown, listo para copiar y pegar directamente al final de tu README:
-
-Markdown
-## 6. Referencia de la API
-
-### Iniciar Transcripción
-* **Endpoint**: `POST /iniciar-transcripcion`
-* **Payload**:
-```json
-{
-  "ruta_local_o_gcs": "gs://bucket/audio.mp3",
-  "cliente_id": "IDENTIFICADOR_CLIENTE"
-}
 
 Nota Legal: Este software es propiedad de The Mendoza Law Firm y está diseñado para uso exclusivo interno en entornos controlados y seguros.
 
