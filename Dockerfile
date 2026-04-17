@@ -14,8 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar el resto del código del proyecto
 COPY . .
 
-# Exponer el puerto que usa Cloud Run (8080 por defecto)
-EXPOSE 8080
+# Exponer el puerto usando la variable de entorno de Cloud Run
+ENV PORT="8080"
+EXPOSE $PORT
 
-# Ejecutar el nuevo main.py con uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Ejecutar con shell (sh -c) para que evalúe la variable $PORT correctamente
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
