@@ -49,7 +49,7 @@ def transcribir_segmento(ruta_audio, ruta_json, num_segmento):
     guia_acustica = preparar_guia_acustica(ruta_json)
     
     print(f"\n[PROCESANDO] Subiendo segmento {num_segmento}: {os.path.basename(ruta_audio)} a Gemini...")
-    audio_subido = client.files.upload(file=ruta_audio)
+    audio_subido = client.files.upload(ruta_audio)
     
     while audio_subido.state.name == 'PROCESSING':
         time.sleep(4)
@@ -101,7 +101,7 @@ def transcribir_segmento(ruta_audio, ruta_json, num_segmento):
         
     return []
 
-def ensamblar_transcripcion_final(carpeta, archivo_final, limites_segmentos):
+def ensamblar_transcripcion_final(carpeta, archivo_final): # <-- Quitamos limites_segmentos
     segmentos_audio = sorted([f for f in os.listdir(carpeta) if f.startswith("segmento_") and f.endswith(".flac")])
     transcripcion_completa = ""
 
@@ -109,11 +109,8 @@ def ensamblar_transcripcion_final(carpeta, archivo_final, limites_segmentos):
         ruta_audio = os.path.join(carpeta, nombre_audio)
         ruta_json = ruta_audio.replace(".flac", ".json")
         
-        inicio_ms_real = 0
-        for limite in limites_segmentos:
-            if limite['archivo'] == nombre_audio:
-                inicio_ms_real = limite['inicio_ms']
-                break
+        # Calculamos el inicio real matemáticamente: i * 3000 segundos (3,000,000 ms)
+        inicio_ms_real = i * 3000000 
         
         if os.path.exists(ruta_json):
             bloques = transcribir_segmento(ruta_audio, ruta_json, i+1)

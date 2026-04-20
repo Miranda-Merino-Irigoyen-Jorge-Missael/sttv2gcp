@@ -17,11 +17,10 @@ def generar_mapas_desde_segmentos(rutas_segmentos, carpeta_segmentos):
     de hablantes. Crea un archivo JSON por cada segmento con las etiquetas de voz.
     """
     logger.info("Iniciando analisis acustico con AssemblyAI.")
-    
     config = aai.TranscriptionConfig(
         speaker_labels=True,
         language_code="es",
-        speech_model=aai.SpeechModel.universal
+        speech_models=["universal-3-pro", "universal-2"] 
     )
     
     transcriber = aai.Transcriber()
