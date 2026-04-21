@@ -1,80 +1,42 @@
-# STT-VAWA-API: Documentación Técnica del Microservicio
+# Documentación Técnica: Microservicio de Transcripción Pericial (STT-VAWA)
 
-Este repositorio contiene el microservicio de transcripción automatizada diseñado para The Mendoza Law Firm. El sistema implementa un pipeline de procesamiento de lenguaje natural y audio orientado a la transcripción pericial de casos legales (VAWA, Visa T, RFE).
+Este repositorio contiene la lógica del microservicio de transcripción automatizada diseñado para procesar testimonios legales de larga duración. El sistema transforma archivos de audio en datos estructurados mediante un pipeline que combina procesamiento acústico, diarización de hablantes y refinamiento lingüístico por inteligencia artificial.
 
-## 1. Descripción General
+## 1. Descripción del Sistema
 
-El sistema procesa archivos de audio de gran longitud mediante una arquitectura de microservicios serverless. Utiliza un enfoque de procesamiento asíncrono que combina el análisis acústico de AssemblyAI con la capacidad de razonamiento lingüístico de los modelos Gemini de Google para corregir terminología legal y nombres propios.
+El servicio opera bajo una arquitectura asíncrona sobre Google Cloud Platform. Su propósito principal es recibir archivos de audio (locales o desde Google Cloud Storage), normalizarlos para garantizar la fidelidad del reconocimiento y generar una transcripción estructurada que identifique roles específicos (Abogado/Cliente) comunes en casos de inmigración (VAWA, Visa T).
 
-## 2. Características Técnicas
+### Componentes Core
+* **Procesamiento de Audio**: Utiliza FFmpeg para estandarizar archivos a formato .flac (Mono, 44100Hz) y normalizar el volumen a -20 LUFS, eliminando picos que puedan distorsionar la interpretación del modelo.
+* **Diarización**: AssemblyAI genera el mapa acústico inicial, identificando los cambios de turno entre voces.
+* **Refinamiento GenAI**: Modelos Gemini de Google reconstruyen el diálogo final, corrigiendo terminología legal y nombres propios basándose en el contexto del audio y la guía acústica.
 
-* **Procesamiento Asíncrono**: Implementado mediante FastAPI (Background Tasks) para manejar cargas pesadas sin interrumpir la disponibilidad de la API.
-* **Normalización y Segmentación**: Estandarización de audio a formato .flac (Mono, 44100Hz) y división en bloques de 50 minutos con detección de silencios para mantener la integridad del contexto.
-* **Diarización de Hablantes**: Mapeo acústico para identificar roles de "Abogado" y "Cliente" de forma automática.
-* **Refinamiento por LLM**: Uso de Gemini para la corrección de errores de transcripción basados en una guía acústica generada previamente.
-* **Gestión de Secretos**: Integración nativa con Google Cloud Secret Manager para la gestión de API Keys.
+## 2. Especificación para Frontend
 
-## 3. Arquitectura del Sistema
+Esta sección es fundamental para la integración con la interfaz web. El servicio no devuelve texto plano, sino una estructura de datos diseñada para crear interfaces interactivas.
 
-El flujo de datos sigue el siguiente orden lógico:
+### Interacción con la API
+El endpoint principal es asíncrono. Al realizar la petición, el servicio valida los datos e inicia el proceso en segundo plano para evitar el timeout del navegador en audios largos.
 
-1.  **Ingesta**: Recepción de solicitud vía HTTP POST con la ruta del archivo (Local o GCS).
-2.  **Preprocesamiento**: El audio se normaliza a -20.0 dBFS y se segmenta si excede los límites de procesamiento de los modelos.
-3.  **Mapa de Voces**: AssemblyAI genera un archivo JSON con las marcas de tiempo y etiquetas de hablantes.
-4.  **Ensamble IA**: Se envían los segmentos de audio y sus respectivos mapas a Gemini. El modelo devuelve una estructura JSON corregida.
-5.  **Persistencia**: Se consolida la transcripción final en un archivo .txt y se almacena en Google Cloud Storage.
-
-## 4. Estructura del Proyecto
-
-* `main.py`: Punto de entrada de la API y orquestador de tareas en segundo plano.
-* `preprocesar_audio.py`: Lógica de estandarización, normalización y segmentación de audio.
-* `assembly_test.py`: Interfaz con el SDK de AssemblyAI para diarización.
-* `fusion_assembly_gemini.py`: Lógica de interacción con Google GenAI y reconstrucción de diálogos.
-* `gcs_manager.py`: Gestión de subida de resultados a Cloud Storage.
-* `google_services.py`: Configuración de autenticación (ADC) y acceso a Secret Manager.
-* `Dockerfile`: Configuración del contenedor para despliegue en Cloud Run.
-
-## 5. Configuración y Despliegue
-
-### Requisitos Previos
-* Python 3.10+
-* FFmpeg (Instalado en el sistema o contenedor)
-* Cuenta de Servicio en GCP con roles de Storage Admin y Secret Manager Accessor.
-
-### Variables de Entorno y Secretos
-El servicio requiere las siguientes variables inyectadas:
-* `GCS_BUCKET_NAME`: Nombre del bucket de destino.
-* `GEMINI_API_KEY`: Gestionado vía Secret Manager.
-* `ASSEMBLYAI_API_KEY`: Gestionado vía Secret Manager.
-
-### Comandos de Despliegue (Cloud Run)
-```bash
-# Construcción de la imagen
-gcloud builds submit --tag gcr.io/[PROJECT_ID]/transcriptor-mendoza
-
-# Despliegue del servicio
-gcloud run deploy transcriptor-mendoza \
-  --image gcr.io/[PROJECT_ID]/transcriptor-mendoza \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --set-env-vars GCS_BUCKET_NAME=[BUCKET_NAME] \
-  --set-secrets="GEMINI_API_KEY=gemini-key:latest,ASSEMBLYAI_API_KEY=assembly-key:latest"
-```
-
-## 6. Referencia de la API
-
-### Iniciar Transcripción
 * **Endpoint**: `POST /iniciar-transcripcion`
-* **Payload**:
+* **Cuerpo de la petición (JSON)**:
+  * `ruta_local_o_gcs`: Ubicación del archivo de audio.
+  * `cliente_id`: Identificador único para la gestión de archivos y carpetas de salida.
+
+### Estructura del Resultado (JSON)
+El archivo final generado en el bucket de salida es un arreglo de objetos. Cada objeto representa un bloque de diálogo con la siguiente anatomía:
+
 ```json
-{
-  "ruta_local_o_gcs": "gs://bucket/audio.mp3",
-  "cliente_id": "IDENTIFICADOR_CLIENTE"
-}
-```
-
-
-Nota Legal: Este software es propiedad de The Mendoza Law Firm y está diseñado para uso exclusivo interno en entornos controlados y seguros.
-
-Referencias: La arquitectura y los comandos de despliegue se basan en la configuración de Google Cloud SDK y las especificaciones de FastAPI utilizadas en el desarrollo de este proyecto.
+[
+  {
+    "tiempo_ms": 65000,
+    "tiempo_formato": "01:05",
+    "hablante": "Abogado",
+    "texto": "Texto refinado por la IA..."
+  },
+  {
+    "error": true,
+    "segmento": 2,
+    "mensaje": "No se pudo transcribir el segmento."
+  }
+]

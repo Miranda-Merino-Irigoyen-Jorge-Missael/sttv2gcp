@@ -104,9 +104,11 @@ def transcribir_segmento(ruta_audio, ruta_json, num_segmento):
         
     return []
 
-def ensamblar_transcripcion_final(carpeta, archivo_final): # <-- Quitamos limites_segmentos
+def ensamblar_transcripcion_final(carpeta, archivo_final):
     segmentos_audio = sorted([f for f in os.listdir(carpeta) if f.startswith("segmento_") and f.endswith(".flac")])
-    transcripcion_completa = ""
+    
+    # Iniciamos una lista vacía para acumular objetos JSON
+    transcripcion_completa = []
 
     for i, nombre_audio in enumerate(segmentos_audio):
         ruta_audio = os.path.join(carpeta, nombre_audio)
@@ -119,20 +121,35 @@ def ensamblar_transcripcion_final(carpeta, archivo_final): # <-- Quitamos limite
             bloques = transcribir_segmento(ruta_audio, ruta_json, i+1)
             
             if not bloques:
-                transcripcion_completa += f"--- ERROR EN SEGMENTO {i+1}: NO SE PUDO TRANSCRIBIR ---\n\n"
+                # Si hay un error, lo agregamos como un objeto estructurado
+                transcripcion_completa.append({
+                    "error": True,
+                    "segmento": i+1,
+                    "mensaje": "No se pudo transcribir el segmento."
+                })
             else:
                 for b in bloques:
                     ms_reales = int(b.get('tiempo_ms', 0)) + inicio_ms_real
                     minutos = ms_reales // 60000
                     segundos = (ms_reales % 60000) // 1000
-                    hablante = b.get('hablante', 'Desconocido')
-                    texto = b.get('texto', '')
-                    transcripcion_completa += f"{hablante} [{minutos:02d}:{segundos:02d}]: {texto}\n\n"
+                    
+                    # Construimos el objeto final y lo añadimos a la lista
+                    transcripcion_completa.append({
+                        "tiempo_ms": ms_reales,
+                        "tiempo_formato": f"{minutos:02d}:{segundos:02d}",
+                        "hablante": b.get('hablante', 'Desconocido'),
+                        "texto": b.get('texto', '')
+                    })
         
         print(f"   [OK] Segmento {i+1} procesado.")
 
-    with open(archivo_final, "w", encoding="utf-8") as f:
-        f.write(transcripcion_completa)
+    # Cambiamos la extensión del archivo de salida de .txt a .json
+    archivo_final_json = archivo_final.replace('.txt', '.json')
+    
+    # Guardamos usando json.dump con ensure_ascii=False para evitar los errores de codificación
+    with open(archivo_final_json, "w", encoding="utf-8") as f:
+        json.dump(transcripcion_completa, f, ensure_ascii=False, indent=4)
         
-    print(f"\n[ÉXITO] Transcripción guardada en: {archivo_final}")
-    return archivo_final
+    print(f"\n[ÉXITO] Transcripción guardada en: {archivo_final_json}")
+    
+    return archivo_final_json

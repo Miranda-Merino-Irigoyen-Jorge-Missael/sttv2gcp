@@ -49,11 +49,13 @@ def tarea_procesamiento_fondo(ruta_entrada: str, cliente_id: str):
         
         # 3. Refinamiento por IA: Reconstruccion de dialogo con Gemini
         archivo_txt_final = os.path.join(carpeta_trabajo, f"Transcripcion_{cliente_id}.txt")
-        fusion_assembly_gemini.ensamblar_transcripcion_final(carpeta_segmentos, archivo_txt_final)
+        # Capturamos la nueva ruta del archivo JSON que devuelve la función
+        archivo_json_final = fusion_assembly_gemini.ensamblar_transcripcion_final(carpeta_segmentos, archivo_txt_final)
         
         # 4. Persistencia: Almacenamiento del resultado final en GCS
         carpeta_gcs = f"transcripciones_{cliente_id}"
-        uri_final = subir_archivo_gcs(archivo_txt_final, GCS_BUCKET_NAME, carpeta_gcs)
+        # Subimos el archivo JSON en lugar del TXT
+        uri_final = subir_archivo_gcs(archivo_json_final, GCS_BUCKET_NAME, carpeta_gcs)
         
         logger.info(f"Proceso finalizado. Archivo disponible en: {uri_final}")
         
