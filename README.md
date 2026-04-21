@@ -42,6 +42,12 @@ El archivo final descargado desde el bucket es un arreglo de objetos:
     "hablante": "Abogado",
     "texto": "Texto refinado por la IA..."
   },
+{
+    "tiempo_ms": 65000,
+    "tiempo_formato": "01:05",
+    "hablante": "cliente",
+    "texto": "Mi historia es la siguiente..."
+  },
   {
     "error": true,
     "segmento": 2,
