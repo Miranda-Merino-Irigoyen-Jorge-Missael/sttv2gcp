@@ -49,7 +49,10 @@ def transcribir_segmento(ruta_audio, ruta_json, num_segmento):
     guia_acustica = preparar_guia_acustica(ruta_json)
     
     print(f"\n[PROCESANDO] Subiendo segmento {num_segmento}: {os.path.basename(ruta_audio)} a Gemini...")
-    audio_subido = client.files.upload(ruta_audio)
+    audio_subido = client.files.upload(
+        file=ruta_audio,
+        config={'mime_type': 'audio/flac'}
+    )
     
     while audio_subido.state.name == 'PROCESSING':
         time.sleep(4)
