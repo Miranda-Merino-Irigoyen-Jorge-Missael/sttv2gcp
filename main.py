@@ -11,6 +11,10 @@ import assembly_test
 import fusion_assembly_gemini
 from gcs_manager import subir_archivo_gcs, obtener_url_firmada_gcs
 
+# Nuevas importaciones para la gestión de Google Drive
+import google_services
+import drive_manager
+
 # Configuración de logging profesional para monitoreo en Google Cloud
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -44,11 +48,34 @@ def tarea_procesamiento_fondo(ruta_entrada: str, cliente_id: str):
         os.makedirs(carpeta_segmentos, exist_ok=True)
         logger.info(f"Iniciando flujo de procesamiento para el cliente: {cliente_id}")
 
-        # GESTIÓN DE ENTRADA: Streaming vs Archivo Local
+        # GESTIÓN DE ENTRADA: Streaming vs Archivo Local vs Google Drive
         if ruta_entrada.startswith("gs://"):
-            logger.info(f"Generando acceso de streaming para: {ruta_entrada}")
+            logger.info(f"Generando acceso de streaming para GCS: {ruta_entrada}")
             ruta_audio_ffmpeg = obtener_url_firmada_gcs(ruta_entrada)
+        
+        elif "drive.google.com" in ruta_entrada:
+            logger.info(f"Detectado enlace de Google Drive. Validando dominio y descargando...")
+            
+            # Autenticación con los servicios de Google
+            _, drive_service = google_services.obtener_servicios_google()
+            
+            # Validación de dominio supportmendoza.com y descarga
+            rutas_descargadas, tipo = drive_manager.procesar_link_entrada(
+                drive_service, 
+                ruta_entrada, 
+                carpeta_trabajo,
+                dominio_firma="supportmendoza.com"
+            )
+            
+            if not rutas_descargadas:
+                raise ValueError("No se encontraron archivos de audio válidos en el enlace de Drive.")
+            
+            # Se toma el primer archivo encontrado para procesar
+            ruta_audio_ffmpeg = rutas_descargadas[0]
+            logger.info(f"Archivo de Drive listo para procesamiento: {ruta_audio_ffmpeg}")
+
         else:
+            # Opción para archivos que ya residen en el sistema de archivos local
             ruta_audio_ffmpeg = ruta_entrada
 
         # 1. Preprocesamiento: Estandarización y segmentación
@@ -76,13 +103,13 @@ def tarea_procesamiento_fondo(ruta_entrada: str, cliente_id: str):
             'completado_en': firestore.SERVER_TIMESTAMP
         })
         
-        logger.info(f"Proceso finalizado. Archivo disponible en: {uri_final}")
+        logger.info(f"Proceso finalizado con éxito. Resultado en: {uri_final}")
         
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Error crítico en el procesamiento del caso {cliente_id}: {error_msg}")
         
-        # Notificación de error en Firestore para evitar esperas infinitas en el UI
+        # Notificación de error en Firestore para el UI
         doc_ref.update({
             'status': 'error',
             'error_mensaje': error_msg,
@@ -90,7 +117,7 @@ def tarea_procesamiento_fondo(ruta_entrada: str, cliente_id: str):
         })
         
     finally:
-        # Limpieza de recursos temporales
+        # Limpieza de recursos temporales para mantener el entorno Cloud Run ligero
         if os.path.exists(carpeta_trabajo):
             shutil.rmtree(carpeta_trabajo, ignore_errors=True)
             logger.info(f"Limpieza de recursos completada para el cliente: {cliente_id}")
@@ -126,5 +153,5 @@ async def iniciar_transcripcion(payload: dict, background_tasks: BackgroundTasks
     return {
         "status": "procesamiento_iniciado", 
         "cliente": cliente_id,
-        "mensaje": "La transcripción se está procesando. El frontend puede monitorear Firestore para actualizaciones."
+        "mensaje": "La transcripción se está procesando. El sistema validará la propiedad del archivo si proviene de Drive."
     }
