@@ -1,10 +1,10 @@
-# Documentación Técnica: Microservicio de Transcripción Pericial (STT-VAWA)
+# Documentación Técnica: Microservicio de Transcripción
 
-Este repositorio contiene la lógica del microservicio de transcripción automatizada diseñado para procesar testimonios legales de larga duración. El sistema transforma archivos de audio en datos estructurados mediante un pipeline que combina procesamiento acústico, diarización de hablantes y refinamiento lingüístico por inteligencia artificial.
+Este repositorio contiene la lógica del microservicio de transcripción automatizada diseñado para procesar audios de larga duración. El sistema transforma archivos de audio en datos estructurados mediante un pipeline que combina procesamiento acústico, diarización de hablantes y refinamiento lingüístico por inteligencia artificial.
 
 ## 1. Descripción del Sistema
 
-El servicio opera bajo una arquitectura asíncrona sobre Google Cloud Platform. Su propósito principal es recibir archivos de audio (locales o desde Google Cloud Storage), normalizarlos para garantizar la fidelidad del reconocimiento y generar una transcripción estructurada que identifique roles específicos (Abogado/Cliente) comunes en casos de inmigración (VAWA, Visa T).
+El servicio opera bajo una arquitectura asíncrona sobre Google Cloud Platform. Su propósito principal es recibir archivos de audio (locales o desde Google Cloud Storage), normalizarlos para garantizar la fidelidad del reconocimiento y generar una transcripción estructurada que identifique roles específicos.
 
 ### Componentes Core
 * **Procesamiento de Audio**: Utiliza FFmpeg para estandarizar archivos a formato .flac (Mono, 44100Hz) y normalizar el volumen a -20 LUFS, eliminando picos que puedan distorsionar la interpretación del modelo.
