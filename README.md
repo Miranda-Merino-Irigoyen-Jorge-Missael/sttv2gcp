@@ -40,3 +40,39 @@ El archivo final generado en el bucket de salida es un arreglo de objetos. Cada 
     "mensaje": "No se pudo transcribir el segmento."
   }
 ]
+```
+
+### Notas de Implementación para el Frontend
+1. **Sincronización con Audio**: El campo `tiempo_ms` representa el milisegundo exacto de inicio del bloque respecto al inicio total del audio original. Se recomienda usar este valor para implementar una función de salto en el reproductor web al hacer clic en un párrafo.
+2. **Visualización de Hablantes**: El campo `hablante` permite aplicar estilos diferenciados (colores o alineación) para separar visualmente las intervenciones del Abogado de las del Cliente.
+3. **Manejo de Errores**: Si un objeto contiene la llave `"error": true`, la interfaz debe manejarlo como un aviso visual en lugar de un bloque de texto.
+
+## 3. Arquitectura y Flujo de Datos
+
+1. **Ingesta**: El servicio recibe la solicitud y genera una URL firmada de Google Cloud Storage para procesar el audio mediante streaming, evitando el desbordamiento de memoria RAM en la instancia de Cloud Run.
+2. **Segmentación**: Si el audio es extenso, se divide en bloques de 50 minutos para optimizar el procesamiento paralelo.
+3. **Persistencia**: El resultado final se guarda con codificación UTF-8 para garantizar la correcta visualización de caracteres especiales (acentos y eñes) en cualquier navegador.
+
+## 4. Configuración del Entorno
+
+### Variables Necesarias
+El servicio requiere la configuración de las siguientes variables y secretos en Google Cloud Secret Manager:
+* `GEMINI_API_KEY`: Credencial para el acceso a modelos generativos de Google.
+* `ASSEMBLYAI_API_KEY`: Credencial para el motor de diarización.
+* `GCS_BUCKET_NAME`: Nombre del contenedor donde se alojarán los resultados finales.
+
+### Comandos de Despliegue
+Para actualizar el servicio en Cloud Run, utilice los siguientes comandos en la terminal:
+
+```bash
+# Construcción de imagen
+gcloud builds submit --tag gcr.io/[PROJECT_ID]/transcriptor-mendoza
+
+# Despliegue de revisión
+gcloud run deploy transcriptor-mendoza \
+  --image gcr.io/[PROJECT_ID]/transcriptor-mendoza \
+  --platform managed \
+  --region us-central1 \
+  --set-env-vars GCS_BUCKET_NAME=[NOMBRE_DEL_BUCKET] \
+  --set-secrets="GEMINI_API_KEY=gemini-key:latest,ASSEMBLYAI_API_KEY=assembly-key:latest"
+```
