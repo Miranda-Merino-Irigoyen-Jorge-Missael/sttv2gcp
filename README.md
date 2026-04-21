@@ -15,6 +15,10 @@ El servicio opera bajo una arquitectura asíncrona sobre Google Cloud Platform. 
 
 Esta sección es fundamental para la integración con la interfaz web. El sistema utiliza un modelo asíncrono con sincronización en tiempo real vía Firebase/Firestore para evitar bloqueos por *timeout* en el navegador.
 
+### Endpoints
+* **Producción (Cloud Run):** `https://transcriptor-mendoza-907757756276.us-central1.run.app`
+* **Ruta de inicio:** `/iniciar-transcripcion` (Método: POST)
+
 ### Flujo de Interacción
 1. **Petición Inicial**: El frontend hace un `POST /iniciar-transcripcion` enviando el `ruta_local_o_gcs` y un `cliente_id` único.
 2. **Respuesta Rápida**: La API devuelve un código 200 inmediatamente confirmando el inicio del proceso.
